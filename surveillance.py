@@ -5,11 +5,11 @@ from tkinter import *
 from tkinter import ttk
 from PIL import Image, ImageTk, ImageOps
 import os
-import imutils
 import math
 import winsound
 import sys
 import subprocess
+import time
 
 
 def ensure_project_venv():
@@ -86,6 +86,7 @@ class App:
 
         self.video_source = video_source
         self.vid = myvideocapture(self.video_source)
+        self._frame_fail_count = 0
 
         self.detected_people = []
         self.warned_conflicts = set()
@@ -195,6 +196,44 @@ class App:
             font=("Segoe UI", 10),
         )
         self.status_label.place(x=16, y=592)
+
+        Label(
+            self.video_panel,
+            text="Camera Source:",
+            bg=self.colors["panel"],
+            fg=self.colors["muted"],
+            font=("Segoe UI", 9),
+        ).place(x=492, y=592)
+
+        self.camera_source_var = StringVar()
+        self.camera_source_combo = ttk.Combobox(
+            self.video_panel,
+            textvariable=self.camera_source_var,
+            values=["0", "1", "2", "3"],
+            state="readonly",
+            width=4,
+        )
+        current_source = self.vid.active_source if isinstance(self.vid.active_source, int) else 0
+        self.camera_source_var.set(str(current_source))
+        self.camera_source_combo.place(x=584, y=591)
+
+        Button(
+            self.video_panel,
+            text="Switch",
+            command=self.switch_camera_source,
+            bg="#10325E",
+            fg=self.colors["text"],
+            activebackground="#1A4D8F",
+            activeforeground=self.colors["text"],
+            bd=0,
+            relief=FLAT,
+            cursor="hand2",
+            font=("Segoe UI Semibold", 9),
+            padx=10,
+            pady=2,
+        ).place(x=636, y=589)
+
+        self._update_camera_status("Monitoring", self.colors["muted"])
 
         Label(
             self.result_panel,
@@ -324,6 +363,36 @@ class App:
             wraplength=300,
         )
         self.crime_label.place(x=205, y=198)
+
+    def _active_backend_name(self):
+        if self.vid.active_backend == cv2.CAP_DSHOW:
+            return "DSHOW"
+        if self.vid.active_backend == cv2.CAP_MSMF:
+            return "MSMF"
+        return "default"
+
+    def _update_camera_status(self, prefix, color):
+        source = self.vid.active_source if self.vid.active_source is not None else "?"
+        backend = self._active_backend_name()
+        self.status_label.configure(
+            text=f"Status: {prefix} (camera {source}, {backend})",
+            fg=color,
+        )
+
+    def switch_camera_source(self):
+        selected = self.camera_source_var.get().strip()
+        if not selected.isdigit():
+            self._update_camera_status("Invalid camera source", self.colors["danger"])
+            return
+
+        new_source = int(selected)
+        try:
+            self.vid.video_source = new_source
+            self.vid.reopen()
+            self._frame_fail_count = 0
+            self._update_camera_status("Monitoring", self.colors["muted"])
+        except Exception:
+            self._update_camera_status(f"Camera {new_source} not available", self.colors["danger"])
 
     def _setup_tree_style(self):
         style = ttk.Style()
@@ -540,6 +609,7 @@ class App:
     def update(self):
         is_true, frame = self.vid.getframe()
         if is_true:
+            self._frame_fail_count = 0
             self.photo = ImageTk.PhotoImage(image=Image.fromarray(frame))
             self.canvas.create_image(0, 0, image=self.photo, anchor=NW)
 
@@ -593,14 +663,23 @@ class App:
 
                     if len(matched_ids) > 1:
                         self._show_conflict_warning(matched_ids)
-                        self.status_label.configure(
-                            text="Status: Warning - same face linked to multiple records: " + ", ".join([str(i) for i in matched_ids]),
-                            fg=self.colors["danger"],
+                        self._update_camera_status(
+                            "Warning - same face linked to multiple records: " + ", ".join([str(i) for i in matched_ids]),
+                            self.colors["danger"],
                         )
                     elif matched_ids:
-                        self.status_label.configure(text="Status: Match detected", fg=self.colors["accent"])
+                        self._update_camera_status("Match detected", self.colors["accent"])
 
             self.process_this_frame = not self.process_this_frame
+
+        else:
+            self._frame_fail_count += 1
+            if self._frame_fail_count == 15:
+                self._update_camera_status("Camera connected but no frames. Retrying...", self.colors["danger"])
+            if self._frame_fail_count >= 45:
+                self.vid.reopen()
+                self._frame_fail_count = 0
+                self._update_camera_status("Monitoring", self.colors["muted"])
 
         self.window.after(15, self.update)
 
@@ -659,24 +738,101 @@ class App:
 
 class myvideocapture:
     def __init__(self, video_source=0):
-        self.vid = cv2.VideoCapture(video_source)
-        if not self.vid.isOpened():
-            raise ValueError("Unable to open video source", video_source)
+        self.video_source = video_source
+        self.vid = None
+        self.width = 0
+        self.height = 0
+        self.active_source = None
+        self.active_backend = None
+        self.reopen()
 
+    def _open_capture_with_backend(self, source, backend=None):
+        if backend is None:
+            cap = cv2.VideoCapture(source)
+        else:
+            cap = cv2.VideoCapture(source, backend)
+
+        if not cap or not cap.isOpened():
+            if cap:
+                cap.release()
+            return None
+
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+
+        if not self._capture_produces_frames(cap):
+            cap.release()
+            return None
+
+        return cap
+
+    @staticmethod
+    def _capture_produces_frames(cap, attempts=12):
+        for _ in range(attempts):
+            ret, frame = cap.read()
+            if ret and frame is not None and frame.size > 0:
+                return True
+            time.sleep(0.05)
+        return False
+
+    def reopen(self):
+        if self.vid is not None and self.vid.isOpened():
+            self.vid.release()
+
+        candidates = []
+        if isinstance(self.video_source, int):
+            if os.name == "nt":
+                candidates.append((self.video_source, cv2.CAP_DSHOW))
+            candidates.append((self.video_source, None))
+        else:
+            if os.name == "nt":
+                candidates.append((self.video_source, cv2.CAP_DSHOW))
+            candidates.append((self.video_source, None))
+
+        unique_candidates = []
+        seen = set()
+        for source, backend in candidates:
+            key = (str(source), backend if backend is not None else "default")
+            if key in seen:
+                continue
+            seen.add(key)
+            unique_candidates.append((source, backend))
+
+        selected = None
+        selected_source = None
+        selected_backend = None
+        for source, backend in unique_candidates:
+            selected = self._open_capture_with_backend(source, backend)
+            if selected is not None:
+                selected_source = source
+                selected_backend = backend
+                break
+
+        if selected is None:
+            raise ValueError("Unable to open any video source", self.video_source)
+
+        self.vid = selected
+        self.active_source = selected_source
+        self.active_backend = selected_backend
         self.width = self.vid.get(cv2.CAP_PROP_FRAME_WIDTH)
         self.height = self.vid.get(cv2.CAP_PROP_FRAME_HEIGHT)
 
     def getframe(self):
-        if self.vid.isOpened():
+        if self.vid and self.vid.isOpened():
             ret, frame = self.vid.read()
             if not ret:
                 return ret, None
-            frame = imutils.resize(frame, height=540)
+            height = frame.shape[0]
+            width = frame.shape[1]
+            if height > 0:
+                scale = 540 / float(height)
+                target_width = max(1, int(width * scale))
+                frame = cv2.resize(frame, (target_width, 540), interpolation=cv2.INTER_AREA)
             return ret, cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         return False, None
 
     def __del__(self):
-        if self.vid.isOpened():
+        if self.vid and self.vid.isOpened():
             self.vid.release()
 
 

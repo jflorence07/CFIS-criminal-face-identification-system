@@ -28,12 +28,14 @@ def ensure_project_venv():
 class ModuleLoadingOverlay:
     """Animated loading popup shown while a module process starts."""
 
-    def __init__(self, parent, module_name):
+    def __init__(self, parent, module_name, messages=None):
         self.parent = parent
         self.module_name = module_name
         self.start_ms = 0
         self.spinner_frames = ["|", "/", "-", "\\"]
         self.spinner_index = 0
+        self._messages = messages if messages else [f"Loading {module_name}..."]
+        self._msg_index = 0
 
         self.top = Toplevel(parent)
         self.top.title("Loading")
@@ -70,7 +72,7 @@ class ModuleLoadingOverlay:
 
         self.message_label = Label(
             container,
-            text=f"Loading {module_name}...",
+            text=self._messages[0] if self._messages else f"Loading {module_name}...",
             bg="#0A152A",
             fg="#E6F1FF",
             font=("Segoe UI", 11),
@@ -111,6 +113,17 @@ class ModuleLoadingOverlay:
 
         self._fade_in()
         self._animate_spinner()
+        self._animate_messages()
+
+    def _animate_messages(self):
+        if not self.top.winfo_exists():
+            return
+        # Advance to next message; stay on the last one once exhausted
+        next_index = self._msg_index + 1
+        if next_index < len(self._messages):
+            self._msg_index = next_index
+            self.message_label.configure(text=self._messages[self._msg_index])
+            self.top.after(1200, self._animate_messages)
 
     def watch_process(self, process, ready_file, on_finished):
         self._poll(process, ready_file, on_finished, wait_ticks=0)
@@ -159,7 +172,7 @@ class ModuleLoadingOverlay:
             self.top.destroy()
 
 
-def launch_script(script_name, current_window=None, module_name="Module"):
+def launch_script(script_name, current_window=None, module_name="Module", messages=None):
     if current_window is None:
         subprocess.Popen([sys.executable, script_name])
         return
@@ -173,21 +186,48 @@ def launch_script(script_name, current_window=None, module_name="Module"):
     env = os.environ.copy()
     env["CFIS_READY_FILE"] = ready_file
 
-    loader = ModuleLoadingOverlay(current_window, module_name)
+    loader = ModuleLoadingOverlay(current_window, module_name, messages=messages)
     process = subprocess.Popen([sys.executable, script_name], env=env)
     loader.watch_process(process, ready_file, on_finished=lambda: current_window.destroy())
 
 
 def register(current_window=None):
-    launch_script("registerGUI.py", current_window, module_name="Registration Module")
+    launch_script(
+        "registerGUI.py",
+        current_window,
+        module_name="Registration Module",
+        messages=[
+            "Initializing system...",
+            "Loading face recognition model...",
+            "Preparing registration module...",
+        ],
+    )
 
 
 def video_surveillance(current_window=None):
-    launch_script("surveillance.py", current_window, module_name="Video Surveillance")
+    launch_script(
+        "surveillance.py",
+        current_window,
+        module_name="Video Surveillance",
+        messages=[
+            "Initializing system...",
+            "Starting camera interface...",
+            "Preparing surveillance module...",
+        ],
+    )
 
 
 def detect_criminal(current_window=None):
-    launch_script("detect.py", current_window, module_name="Photo Match")
+    launch_script(
+        "detect.py",
+        current_window,
+        module_name="Photo Match",
+        messages=[
+            "Initializing system...",
+            "Loading face recognition model...",
+            "Preparing photo match module...",
+        ],
+    )
 
 
 class AnimatedDashboard:
