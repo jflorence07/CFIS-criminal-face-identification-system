@@ -66,7 +66,7 @@ class PhotoMatchDashboard:
 
     def __init__(self):
         self.root = Tk()
-        self.root.title("Criminal Registration System - Photo Match")
+        self.root.title("Face Detection System - Photo Match")
         self.root.geometry("1360x760")
         self.root.state("zoomed")
         self.root.configure(bg="#040B1A")
@@ -118,7 +118,7 @@ class PhotoMatchDashboard:
 
         Label(
             self.header,
-            text="CRIMINAL REGISTRATION SYSTEM",
+            text="FACE DETECTION SYSTEM",
             bg=self.colors["header"],
             fg=self.colors["accent"],
             font=("Segoe UI Semibold", 13),
@@ -205,7 +205,7 @@ class PhotoMatchDashboard:
             show="headings",
             height=9,
         )
-        self.tree.heading("id", text="Criminal-ID")
+        self.tree.heading("id", text="Personnel-ID")
         self.tree.heading("name", text="Name")
         self.tree.heading("crime", text="Crime")
         self.tree.heading("nationality", text="Nationality")

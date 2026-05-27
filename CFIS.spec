@@ -1,5 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
-# PyInstaller spec for CFIS - Criminal Face Identification System
+# PyInstaller spec for CFIS - Face Identification System
 # Builds 4 executables into a single dist/CFIS/ directory.
 
 import os

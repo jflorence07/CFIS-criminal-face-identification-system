@@ -61,11 +61,11 @@ def notify_launcher_ready(root):
 
 
 class RegisterDashboard:
-    """Modern registration UI for adding criminal profiles with image preview."""
+    """Modern registration UI for adding personnel profiles with image preview."""
 
     def __init__(self):
         self.root = Tk()
-        self.root.title("Criminal Registration System - Register Criminal")
+        self.root.title("Face Detection System - Register Personnel")
         self.root.geometry("1280x720")
         self.root.minsize(1100, 680)
         self.root.state("zoomed")
@@ -134,7 +134,7 @@ class RegisterDashboard:
 
         Label(
             self.header,
-            text="CRIMINAL REGISTRATION SYSTEM",
+            text="FACE DETECTION SYSTEM",
             bg=self.colors["header"],
             fg=self.colors["accent"],
             font=("Segoe UI Semibold", 13),
@@ -142,7 +142,7 @@ class RegisterDashboard:
 
         Label(
             self.header,
-            text="Add and verify criminal identity records",
+            text="Add and verify personnel identity records",
             bg=self.colors["header"],
             fg=self.colors["muted"],
             font=("Segoe UI", 10),
@@ -172,7 +172,7 @@ class RegisterDashboard:
 
         Label(
             self.form_panel,
-            text="Criminal Registration System",
+            text="Face Detection System",
             bg=self.colors["panel"],
             fg=self.colors["text"],
             font=("Bahnschrift SemiBold", 22),
@@ -212,7 +212,7 @@ class RegisterDashboard:
         y += 56
 
         self._action_button("Select Face Image *", self.open_file, 185, y)
-        self._action_button("Register Criminal", self.ask_register, 375, y)
+        self._action_button("Register Personnel", self.ask_register, 375, y)
 
         Label(
             self.preview_panel,
@@ -585,7 +585,7 @@ class RegisterDashboard:
 
         # Handle duplicate face detection
         if success == 2:
-            self._show_duplicate_criminal_modal(
+            self._show_duplicate_personnel_modal(
                 existing_id=payload["id"],
                 existing_name=payload["name"],
                 existing_crime=payload["crime"],
@@ -595,7 +595,7 @@ class RegisterDashboard:
         elif success == 1:
             self._show_notification(
                 title="Success",
-                message="Criminal registered successfully. Returning to the main menu.",
+                message="Personnel registered successfully. Returning to the main menu.",
                 kind="info",
             )
             self.go_back()
@@ -629,7 +629,7 @@ class RegisterDashboard:
 
         Label(
             frame,
-            text="REGISTERING CRIMINAL",
+            text="REGISTERING PERSONNEL",
             bg=self.colors["panel"],
             fg=self.colors["accent"],
             font=("Segoe UI Semibold", 13),
@@ -721,13 +721,13 @@ class RegisterDashboard:
         if hasattr(self, "_loading_modal") and self._loading_modal.winfo_exists():
             self._loading_modal.destroy()
 
-    def _show_duplicate_criminal_modal(self, existing_id, existing_name, existing_crime, new_violation, matches=None):
+    def _show_duplicate_personnel_modal(self, existing_id, existing_name, existing_crime, new_violation, matches=None):
         """Show duplicate warning with table view and admin actions."""
         matches = matches or []
         records = self._collect_duplicate_records(existing_id, matches)
         self._show_notification(
-            title="Possible Existing Criminal",
-            message="Possible existing criminal detected. This person may already have a record in the database.",
+            title="Possible Existing Personnel",
+            message="Possible existing personnel detected. This person may already have a record in the database.",
             kind="warning",
         )
 
@@ -755,7 +755,7 @@ class RegisterDashboard:
         modal.transient(self.root)
         modal.grab_set()
         modal.resizable(False, False)
-        modal.title("Possible Existing Criminal Record")
+        modal.title("Possible Existing Personnel Record")
         modal.configure(bg=self.colors["panel"])
 
         width = 1100
@@ -774,7 +774,7 @@ class RegisterDashboard:
 
         Label(
             frame,
-            text="Warning: Criminal may already exist in the database",
+            text="Warning: Personnel may already exist in the database",
             bg=self.colors["panel"],
             fg="#FFAD42",
             font=("Segoe UI Semibold", 14),
@@ -783,7 +783,7 @@ class RegisterDashboard:
         Label(
             frame,
             text=(
-                f"Matched Profile: {existing_name}  |  Criminal ID: {self._format_criminal_id(existing_id)}"
+                f"Matched Profile: {existing_name}  |  Personnel ID: {self._format_personnel_id(existing_id)}"
                 f"  |  Similarity: {similarity_text}"
             ),
             bg=self.colors["panel"],
@@ -852,7 +852,7 @@ class RegisterDashboard:
             "similarity",
         )
         table = ttk.Treeview(table_host, columns=columns, show="headings", height=14, style="Duplicate.Treeview")
-        table.heading("criminal_id", text="Criminal ID")
+        table.heading("criminal_id", text="Personnel ID")
         table.heading("name", text="Name")
         table.heading("alias", text="Possible Alias")
         table.heading("crime", text="Crime Type")
@@ -890,7 +890,7 @@ class RegisterDashboard:
                 "",
                 END,
                 values=(
-                    self._format_criminal_id(row["id"]),
+                    self._format_personnel_id(row["id"]),
                     row["name"],
                     row["alias"],
                     row["crime"],
@@ -1135,7 +1135,7 @@ class RegisterDashboard:
             photo_left_label.img_ref = new_img
             photo_left_label.configure(image=new_img, text="")
 
-            crim_id_str = self._format_criminal_id(rec["id"])
+            crim_id_str = self._format_personnel_id(rec["id"])
             selected_name_lbl.configure(
                 text=f"{rec.get('name', '-')}  |  {crim_id_str}"
             )
@@ -1157,7 +1157,7 @@ class RegisterDashboard:
             photo_left_label.img_ref = _bimg
             photo_left_label.configure(image=_bimg, text="")
             selected_name_lbl.configure(
-                text=f"{best.get('name', '-')}  |  {self._format_criminal_id(best['id'])}"
+                text=f"{best.get('name', '-')}  |  {self._format_personnel_id(best['id'])}"
             )
             _bs = int(best.get("similarity", 85))
             _bc = _threat_color(_bs)
@@ -1253,7 +1253,7 @@ class RegisterDashboard:
             self._show_notification(
                 title="Violation Added",
                 message=(
-                    f"Existing record kept for {existing_name} ({self._format_criminal_id(existing_id)}).\n"
+                    f"Existing record kept for {existing_name} ({self._format_personnel_id(existing_id)}).\n"
                     f"New violation added: {new_violation}\n\n"
                     f"Violation history:\n{history_text}"
                 ),
@@ -1281,7 +1281,7 @@ class RegisterDashboard:
                     title="Alias Saved",
                     message=(
                         f"New name '{admin_entered_name}' has been marked as alias for "
-                        f"{existing_name} ({self._format_criminal_id(existing_id)})."
+                        f"{existing_name} ({self._format_personnel_id(existing_id)})."
                     ),
                     kind="info",
                 )
@@ -1307,7 +1307,7 @@ class RegisterDashboard:
             pass
         return ImageTk.PhotoImage(fallback)
 
-    def _format_criminal_id(self, criminal_id):
+    def _format_personnel_id(self, criminal_id):
         try:
             return f"CR-{int(criminal_id):04d}"
         except Exception:

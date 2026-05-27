@@ -20,19 +20,19 @@ for filename in os.listdir("images"):
     try:
         parts = filename.split(".")
         if len(parts) >= 3:
-            criminal_id = int(parts[1])
+            personnel_id = int(parts[1])
             image_path = os.path.join("images", filename)
             
             # Check if file exists and has size
             file_size = os.path.getsize(image_path)
-            print(f"Loading {filename} (ID: {criminal_id}, Size: {file_size} bytes)")
+            print(f"Loading {filename} (ID: {personnel_id}, Size: {file_size} bytes)")
             
             img = fr.load_image_file(image_path)
             vectors = fr.face_encodings(img)
             
             if vectors:
                 known_encodings.append(vectors[0])
-                known_face_ids.append(criminal_id)
+                known_face_ids.append(personnel_id)
                 print(f"  ✓ Face encoding found (encoding shape: {vectors[0].shape})")
             else:
                 print(f"  ❌ NO FACE DETECTED in {filename}")

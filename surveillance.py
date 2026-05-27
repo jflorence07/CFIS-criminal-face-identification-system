@@ -62,10 +62,10 @@ def notify_launcher_ready(root):
 
 
 class App:
-    """Live surveillance dashboard with modern UI and criminal match results."""
+    """Live surveillance dashboard with modern UI and personnel match results."""
 
     def __init__(self, video_source=0):
-        self.appname = "Criminal Registration System - Surveillance"
+        self.appname = "Face Detection System - Surveillance"
         self.window = Tk()
         self.window.title(self.appname)
         self.window.geometry("1360x760")
@@ -150,7 +150,7 @@ class App:
 
         Label(
             self.header,
-            text="CRIMINAL REGISTRATION SYSTEM",
+            text="FACE DETECTION SYSTEM",
             bg=self.colors["header"],
             fg=self.colors["accent"],
             font=("Segoe UI Semibold", 13),
@@ -651,7 +651,7 @@ class App:
                 self.colors["danger"],
             )
         else:
-            self._update_camera_status(f"Match detected - {num_new} criminal(s)", self.colors["accent"])
+            self._update_camera_status(f"Match detected - {num_new} personnel", self.colors["accent"])
 
         # Clear batch
         self.frame_detections = []

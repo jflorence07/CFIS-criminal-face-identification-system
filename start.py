@@ -226,7 +226,7 @@ def video_surveillance(current_window=None):
     )
 
 
-def detect_criminal(current_window=None):
+def detect_personnel(current_window=None):
     launch_script(
         "detect.py",
         current_window,
@@ -244,7 +244,7 @@ class AnimatedDashboard:
 
     def __init__(self):
         self.root = Tk()
-        self.root.title("Criminal Registration System")
+        self.root.title("Face Detection System")
         self.root.geometry("800x500")
         self.root.minsize(800, 500)
         self.root.maxsize(800, 500)
@@ -284,7 +284,7 @@ class AnimatedDashboard:
 
         Label(
             self.header,
-            text="CRIMINAL REGISTRATION SYSTEM",
+            text="FACE DETECTION SYSTEM",
             bg=self.colors["nav"],
             fg=self.colors["accent"],
             font=("Segoe UI Semibold", 12),
@@ -313,7 +313,7 @@ class AnimatedDashboard:
 
         Label(
             self.panel,
-            text="Criminal Registration System",
+            text="Face Detection System",
             bg=self.colors["panel"],
             fg=self.colors["text"],
             font=("Bahnschrift SemiBold", 24),
@@ -327,8 +327,8 @@ class AnimatedDashboard:
             font=("Segoe UI", 11),
         ).pack(pady=(0, 18))
 
-        self._create_action_button("Register Criminal", lambda: register(self.root)).pack(pady=7)
-        self._create_action_button("Photo Match", lambda: detect_criminal(self.root)).pack(pady=7)
+        self._create_action_button("Register Personnel", lambda: register(self.root)).pack(pady=7)
+        self._create_action_button("Photo Match", lambda: detect_personnel(self.root)).pack(pady=7)
         self._create_action_button("Video Surveillance", lambda: video_surveillance(self.root)).pack(pady=7)
 
     def _create_action_button(self, text, command):
