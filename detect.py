@@ -15,6 +15,8 @@ import subprocess
 
 def ensure_project_venv():
     """Relaunch with .venv interpreter when launched from a different Python."""
+    if getattr(sys, 'frozen', False):
+        return
     base_dir = os.path.dirname(os.path.abspath(__file__))
     venv_python = os.path.join(base_dir, ".venv", "Scripts", "python.exe")
 
@@ -33,6 +35,9 @@ def ensure_project_venv():
 
 
 ensure_project_venv()
+
+if getattr(sys, 'frozen', False):
+    os.chdir(os.path.dirname(sys.executable))
 import face_recognition as fr
 
 RESAMPLE = Image.Resampling.LANCZOS if hasattr(Image, "Resampling") else Image.LANCZOS
@@ -654,7 +659,10 @@ class PhotoMatchDashboard:
         return "Violations (latest first):\n" + history
 
     def go_back(self):
-        subprocess.Popen([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "start.py")])
+        if getattr(sys, 'frozen', False):
+            subprocess.Popen([os.path.join(os.path.dirname(sys.executable), 'CFIS.exe')])
+        else:
+            subprocess.Popen([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "start.py")])
         self.root.destroy()
 
     def _fade_in_window(self):

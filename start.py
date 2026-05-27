@@ -8,6 +8,8 @@ import uuid
 
 def ensure_project_venv():
     """Relaunch with .venv interpreter when launched from a different Python."""
+    if getattr(sys, 'frozen', False):
+        return
     base_dir = os.path.dirname(os.path.abspath(__file__))
     venv_python = os.path.join(base_dir, ".venv", "Scripts", "python.exe")
 
@@ -173,12 +175,19 @@ class ModuleLoadingOverlay:
 
 
 def launch_script(script_name, current_window=None, module_name="Module", messages=None):
+    if getattr(sys, 'frozen', False):
+        exe_name = os.path.splitext(os.path.basename(script_name))[0] + '.exe'
+        target = [os.path.join(os.path.dirname(sys.executable), exe_name)]
+        base_dir = os.path.dirname(sys.executable)
+    else:
+        target = [sys.executable, script_name]
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+
     if current_window is None:
-        subprocess.Popen([sys.executable, script_name])
+        subprocess.Popen(target)
         return
 
     token = uuid.uuid4().hex
-    base_dir = os.path.dirname(os.path.abspath(__file__))
     temp_dir = os.path.join(base_dir, "temp")
     os.makedirs(temp_dir, exist_ok=True)
     ready_file = os.path.join(temp_dir, f"launch_ready_{token}.flag")
@@ -187,7 +196,7 @@ def launch_script(script_name, current_window=None, module_name="Module", messag
     env["CFIS_READY_FILE"] = ready_file
 
     loader = ModuleLoadingOverlay(current_window, module_name, messages=messages)
-    process = subprocess.Popen([sys.executable, script_name], env=env)
+    process = subprocess.Popen(target, env=env)
     loader.watch_process(process, ready_file, on_finished=lambda: current_window.destroy())
 
 

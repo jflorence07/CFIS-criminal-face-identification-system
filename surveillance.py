@@ -10,10 +10,13 @@ import winsound
 import sys
 import subprocess
 import time
+import threading
 
 
 def ensure_project_venv():
     """Relaunch with .venv interpreter when launched from a different Python."""
+    if getattr(sys, 'frozen', False):
+        return
     base_dir = os.path.dirname(os.path.abspath(__file__))
     venv_python = os.path.join(base_dir, ".venv", "Scripts", "python.exe")
 
@@ -32,6 +35,9 @@ def ensure_project_venv():
 
 
 ensure_project_venv()
+
+if getattr(sys, 'frozen', False):
+    os.chdir(os.path.dirname(sys.executable))
 import face_recognition as fr
 
 RESAMPLE = Image.Resampling.LANCZOS if hasattr(Image, "Resampling") else Image.LANCZOS
@@ -94,6 +100,9 @@ class App:
         self.face_encodings = []
         self.face_names = []
         self.process_this_frame = True
+        self.frame_detections = []  # batch detections in current frame
+        self.frame_conflicts = []  # batch conflicts in current frame
+        self.notification_scheduled = False  # prevent duplicate notifications
 
         self.images = self.load_images_from_folder("images")
         self.encodings = []
@@ -527,84 +536,127 @@ class App:
                 score = max(score, value)
         return score
 
-    def _show_conflict_warning(self, matched_ids):
+    def _play_notification_sound_async(self):
+        """Play sound in background thread to avoid blocking video loop."""
+        def play_sound():
+            try:
+                winsound.PlaySound("SystemExit", winsound.SND_ALIAS)
+            except Exception:
+                pass
+        thread = threading.Thread(target=play_sound, daemon=True)
+        thread.start()
+
+    def _show_conflict_warning_async(self, matched_ids):
+        """Show conflict warning non-blocking using after()."""
         key = tuple(sorted([str(item) for item in matched_ids]))
         if key in self.warned_conflicts:
             return
         self.warned_conflicts.add(key)
 
-        modal = Toplevel(self.window)
-        modal.transient(self.window)
-        modal.grab_set()
-        modal.resizable(False, False)
-        modal.title("Danger Warning")
-        modal.configure(bg="#2A0606")
-        modal.attributes("-topmost", True)
+        def show_modal():
+            modal = Toplevel(self.window)
+            modal.transient(self.window)
+            modal.resizable(False, False)
+            modal.title("Danger Warning")
+            modal.configure(bg="#2A0606")
+            modal.attributes("-topmost", True)
 
-        width = 560
-        height = 250
-        self.window.update_idletasks()
-        screen_w = self.window.winfo_screenwidth()
-        screen_h = self.window.winfo_screenheight()
-        x = (screen_w // 2) - (width // 2)
-        y = (screen_h // 2) - (height // 2)
-        modal.geometry(f"{width}x{height}+{x}+{y}")
+            width = 560
+            height = 250
+            screen_w = self.window.winfo_screenwidth()
+            screen_h = self.window.winfo_screenheight()
+            x = (screen_w // 2) - (width // 2)
+            y = (screen_h // 2) - (height // 2)
+            modal.geometry(f"{width}x{height}+{x}+{y}")
 
-        frame = Frame(modal, bg="#2A0606", highlightthickness=2, highlightbackground="#FF3B3B")
-        frame.place(x=12, y=12, width=width - 24, height=height - 24)
+            frame = Frame(modal, bg="#2A0606", highlightthickness=2, highlightbackground="#FF3B3B")
+            frame.place(x=12, y=12, width=width - 24, height=height - 24)
 
-        Label(
-            frame,
-            text="CRITICAL ALERT",
-            bg="#2A0606",
-            fg="#FFC9C9",
-            font=("Segoe UI Semibold", 10),
-        ).place(x=16, y=10)
+            Label(
+                frame,
+                text="CRITICAL ALERT",
+                bg="#2A0606",
+                fg="#FFC9C9",
+                font=("Segoe UI Semibold", 10),
+            ).place(x=16, y=10)
 
-        Label(
-            frame,
-            text="[DANGER] SAME FACE ALREADY EXISTS",
-            bg="#2A0606",
-            fg="#FF3B3B",
-            font=("Segoe UI Black", 14),
-        ).place(x=16, y=32)
+            Label(
+                frame,
+                text="[DANGER] SAME FACE ALREADY EXISTS",
+                bg="#2A0606",
+                fg="#FF3B3B",
+                font=("Segoe UI Black", 14),
+            ).place(x=16, y=32)
 
-        Label(
-            frame,
-            text="This user already exists under multiple records: " + ", ".join([str(i) for i in matched_ids]),
-            bg="#2A0606",
-            fg=self.colors["text"],
-            font=("Segoe UI", 10),
-            wraplength=510,
-            justify=LEFT,
-            anchor="w",
-        ).place(x=16, y=82)
+            Label(
+                frame,
+                text="This user already exists under multiple records: " + ", ".join([str(i) for i in matched_ids]),
+                bg="#2A0606",
+                fg=self.colors["text"],
+                font=("Segoe UI", 10),
+                wraplength=510,
+                justify=LEFT,
+                anchor="w",
+            ).place(x=16, y=82)
 
-        Label(
-            frame,
-            text="Block duplicate registration and review all linked records immediately.",
-            bg="#2A0606",
-            fg="#FF9C9C",
-            font=("Segoe UI", 9),
-            anchor="w",
-        ).place(x=16, y=142)
+            Label(
+                frame,
+                text="Block duplicate registration and review all linked records immediately.",
+                bg="#2A0606",
+                fg="#FF9C9C",
+                font=("Segoe UI", 9),
+                anchor="w",
+            ).place(x=16, y=142)
 
-        Button(
-            frame,
-            text="OK",
-            command=modal.destroy,
-            bg="#8D1616",
-            fg=self.colors["text"],
-            activebackground="#B02121",
-            activeforeground=self.colors["text"],
-            bd=0,
-            relief=FLAT,
-            cursor="hand2",
-            font=("Segoe UI Semibold", 10),
-            width=12,
-        ).place(x=406, y=184)
+            Button(
+                frame,
+                text="OK",
+                command=modal.destroy,
+                bg="#8D1616",
+                fg=self.colors["text"],
+                activebackground="#B02121",
+                activeforeground=self.colors["text"],
+                bd=0,
+                relief=FLAT,
+                cursor="hand2",
+                font=("Segoe UI Semibold", 10),
+                width=12,
+            ).place(x=406, y=184)
 
-        self.window.wait_window(modal)
+        # Show modal after 250ms to not block video
+        self.window.after(250, show_modal)
+
+    def _process_frame_detections(self):
+        """Process all detections batched in current frame and notify once."""
+        if not self.frame_detections:
+            return
+
+        # Only ring/notify once per frame batch
+        self._play_notification_sound_async()
+
+        # Add all new profiles to tree
+        for profile, confidence in self.frame_detections:
+            profile_data = tuple(list(profile) + [confidence])
+            self.tree.insert("", "end", values=profile_data)
+
+        # Show conflict warnings
+        for matched_ids in self.frame_conflicts:
+            self._show_conflict_warning_async(matched_ids)
+
+        # Update status with summary
+        num_new = len(self.frame_detections)
+        if self.frame_conflicts:
+            self._update_camera_status(
+                f"Alert - {num_new} match(es) detected with duplicate records",
+                self.colors["danger"],
+            )
+        else:
+            self._update_camera_status(f"Match detected - {num_new} criminal(s)", self.colors["accent"])
+
+        # Clear batch
+        self.frame_detections = []
+        self.frame_conflicts = []
+        self.notification_scheduled = False
 
     def update(self):
         is_true, frame = self.vid.getframe()
@@ -617,6 +669,8 @@ class App:
             rgb_small_frame = np.ascontiguousarray(small_frame)
 
             if self.process_this_frame and self.encodings:
+                self.frame_detections = []  # reset batch for this frame
+                self.frame_conflicts = []   # reset batch for this frame
                 self.face_locations = fr.face_locations(rgb_small_frame)
                 try:
                     self.face_encodings = fr.face_encodings(rgb_small_frame, self.face_locations)
@@ -657,18 +711,17 @@ class App:
                     for profile in candidate_profiles:
                         if profile not in self.detected_people:
                             self.detected_people.append(profile)
-                            profile_data = tuple(list(profile) + [confidence])
-                            self.tree.insert("", "end", values=profile_data)
-                            winsound.PlaySound("SystemExit", winsound.SND_ALIAS)
+                            # Batch this detection
+                            self.frame_detections.append((profile, confidence))
 
                     if len(matched_ids) > 1:
-                        self._show_conflict_warning(matched_ids)
-                        self._update_camera_status(
-                            "Warning - same face linked to multiple records: " + ", ".join([str(i) for i in matched_ids]),
-                            self.colors["danger"],
-                        )
-                    elif matched_ids:
-                        self._update_camera_status("Match detected", self.colors["accent"])
+                        # Batch the conflict
+                        self.frame_conflicts.append(matched_ids)
+
+                # Process all batched detections at end of frame
+                if self.frame_detections and not self.notification_scheduled:
+                    self.notification_scheduled = True
+                    self._process_frame_detections()
 
             self.process_this_frame = not self.process_this_frame
 
@@ -732,7 +785,10 @@ class App:
         return tuple(int(value[i:i + 2], 16) for i in (0, 2, 4))
 
     def go_back(self):
-        subprocess.Popen([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "start.py")])
+        if getattr(sys, 'frozen', False):
+            subprocess.Popen([os.path.join(os.path.dirname(sys.executable), 'CFIS.exe')])
+        else:
+            subprocess.Popen([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "start.py")])
         self.window.destroy()
 
 

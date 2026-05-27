@@ -12,6 +12,8 @@ import threading
 
 def ensure_project_venv():
     """Relaunch with .venv interpreter when launched from a different Python."""
+    if getattr(sys, 'frozen', False):
+        return
     base_dir = os.path.dirname(os.path.abspath(__file__))
     venv_python = os.path.join(base_dir, ".venv", "Scripts", "python.exe")
 
@@ -30,6 +32,9 @@ def ensure_project_venv():
 
 
 ensure_project_venv()
+
+if getattr(sys, 'frozen', False):
+    os.chdir(os.path.dirname(sys.executable))
 
 import face_recognition as fr
 import numpy as np
@@ -1477,7 +1482,10 @@ class RegisterDashboard:
         return result["value"]
 
     def go_back(self):
-        subprocess.Popen([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "start.py")])
+        if getattr(sys, 'frozen', False):
+            subprocess.Popen([os.path.join(os.path.dirname(sys.executable), 'CFIS.exe')])
+        else:
+            subprocess.Popen([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "start.py")])
         self.root.destroy()
 
     def get_id(self):
